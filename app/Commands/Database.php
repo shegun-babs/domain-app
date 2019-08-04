@@ -2,6 +2,7 @@
 
 namespace App\Commands;
 
+use App\Lib\BackUp;
 use Carbon\Carbon;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Storage;
@@ -25,32 +26,29 @@ class Database extends Command
      */
     protected $description = 'backup a list of databases';
 	private $process;
+	/**
+	 * @var BackUp
+	 */
+	private $backUp;
 
 	/**
 	 * Database constructor.
+	 * @param BackUp $backUp
 	 */
-	public function __construct()
+	public function __construct(BackUp $backUp)
 	{
 		parent::__construct();
-		$db = '*';
-		$db_username = 'homestead';
-		$db_password = 'secret';
-		$filename = 'backup-' .Carbon::now()->format('Y_m_d_H_i_s'). '.sql';
-		$backup_dir = storage_path("backups");
-		is_dir($backup_dir) ?: mkdir($backup_dir, true);
-		$backup_storage = $backup_dir. '/' .$filename;
-
-		echo $backup_storage;
 
 		$this->process = new Process(
 			sprintf(
 				'mysqldump -u%s -p%s %s > %s',
-				$db_username,
-				$db_password,
-				'--all-databases',
-				$backup_storage
+				$backUp->getUsername(),
+				$backUp->getPassword(),
+				$backUp->getDatabases(),
+				$backUp->filenameAndPath()
 			)
 		);
+
 	}
 
 	/**
@@ -61,7 +59,14 @@ class Database extends Command
     public function handle()
     {
     	try{
-    		$this->process->mustRun();
+		    $this->task("Saving file", function () {
+			    $this->process->mustRun();
+			    return true;
+		    });
+		    $this->task('File saved', function (){
+		    	return true;
+		    });
+
 	    } catch (ProcessFailedException $exception) {
 		    $this->error('The backup process failed.');
 		    $this->info($exception->getMessage());
